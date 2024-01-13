@@ -70,9 +70,11 @@ def send_message(bot: telegram.Bot, message: str) -> str:
     return message
 
 
-def get_api_answer(timestamp: int) -> dict:
+def get_api_answer(
+        timestamp: int,
+) -> dict[str, Union[list[dict[str, Union[str, int]]], int]]:
     """Функция для получения ответа от API."""
-    logger.debug(f'Начало отправки запроса со параметром {timestamp}')
+    logger.debug(f'Начало отправки запроса с параметром {timestamp}')
     try:
         response = requests.get(
             ENDPOINT, headers=HEADERS, params={'from_date': timestamp}
@@ -85,7 +87,7 @@ def get_api_answer(timestamp: int) -> dict:
             f'Эндпоинт {ENDPOINT} недоступен. '
             f'Код ответа API: {response.status_code}'
         )
-    logger.debug(f'Успешно получен ответ с параметром {timestamp}')
+    logger.debug(f'Успешно получен ответ на запрос с параметром {timestamp}')
     return response.json()
 
 
