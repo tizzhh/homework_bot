@@ -6,6 +6,7 @@ from contextlib import suppress
 from http import HTTPStatus
 from logging import StreamHandler
 from typing import Union
+from functools import wraps
 
 import requests
 import telegram
@@ -56,7 +57,24 @@ def check_tokens() -> None:
         sys.exit(message)
 
 
-def send_message(bot: telegram.Bot, message: str) -> str:
+def logger_debug(f):
+    """Декоратор для логирования уровня DEBUG."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        logger.debug(
+            f'Начало выполнения {f.__name__}'
+            f'{args}, {kwargs}'
+        )
+        output = f(*args, **kwargs)
+        logger.debug(
+            f'Конец выполнения {f.__name__}'
+            f'{args}, {kwargs}'
+        )
+        return output
+    return wrapper
+
+
+def send_message(bot: telegram.Bot, message: str) -> None:
     """Функиця для отправки ботом сообщения."""
     logger.debug(
         f'Начало отправки сообщения юзеру {TELEGRAM_CHAT_ID}'
@@ -67,7 +85,6 @@ def send_message(bot: telegram.Bot, message: str) -> str:
         f'Отправлено сообщение юзеру {TELEGRAM_CHAT_ID} '
         f'с текстом {message}'
     )
-    return message
 
 
 def get_api_answer(
@@ -113,8 +130,9 @@ def parse_status(homework: dict[str, Union[int, str]]) -> str:
         raise KeyError('Отсутствие ключа homework_name в ответе API')
     if 'status' not in homework:
         raise KeyError('Отсутствие ключа status в ответе API')
-    if homework['status'] not in HOMEWORK_VERDICTS:
-        raise KeyError('Неожиданный статус домашки')
+    recieved_status = homework['status']
+    if recieved_status not in HOMEWORK_VERDICTS:
+        raise ValueError(f'Неожиданный статус домашки: {recieved_status}')
     logger.debug(
         f'Успешное завершение парсинга статуса для словаря {homework}'
     )
@@ -129,7 +147,7 @@ def main() -> None:
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    last_msg = None
+    last_msg = ''
     while True:
         try:
             response = get_api_answer(timestamp - RETRY_PERIOD)
@@ -137,11 +155,11 @@ def main() -> None:
             homeworks = response['homeworks']
             if not homeworks:
                 logger.info('Обновления отсутствуют')
-            else:
-                status = parse_status(response['homeworks'][0])
-                if status != last_msg:
-                    last_msg = send_message(bot, status)
-                timestamp = response['current_date']
+                continue
+            message = parse_status(response['homeworks'][0])
+            if message != last_msg:
+                last_msg = send_message(bot, message)
+            timestamp = response['current_date']
         except telegram.error.TelegramError as error:
             logger.error(f'Сбой в работе телеграмма: {error}')
         except Exception as error:
