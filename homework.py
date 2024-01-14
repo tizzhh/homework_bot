@@ -14,9 +14,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Забыл спросить. Я так понимаю, логгер следует использовать
-# вообще в любом проекте адекватном. В django_sprint4, например
-# он бы тоже не помешал, да?
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 handler = StreamHandler(stream=sys.stdout)
@@ -60,40 +57,34 @@ def check_tokens() -> None:
         sys.exit(message)
 
 
-# Благодаря твоему комментарию вспомнил вообще
-# про существование декораторов, поэтому решил
-# добавить такой тоже. По-моему, при масштабировании
-# как раз будет кстати.
-def logger_debug(f):
+def logger_debug(func):
     """Декоратор для логирования уровня DEBUG."""
 
-    @wraps(f)
+    @wraps(func)
     def wrapper(*args, **kwargs):
         logger.debug(
-            f'Начало выполнения {f.__name__}'
+            f'Начало выполнения {func.__name__}'
             f'с args: {args}, kwargs: {kwargs}'
         )
-        output = f(*args, **kwargs)
+        output = func(*args, **kwargs)
         logger.debug(
-            f'Конец выполнения {f.__name__}' f'с args: {args}, {kwargs}'
+            f'Конец выполнения {func.__name__}' f'с args: {args}, {kwargs}'
         )
         return output
 
     return wrapper
 
 
-def was_this_message_already_sent(f):
+def was_this_message_already_sent(func):
     """Декоратор для проверки последнего отправленного сообщения."""
     last_msg = ''
 
-    @wraps(f)
-    # как-то не придумал, как можно сделать с args и kwargs,
-    # поэтому явно аргументы оставил
+    @wraps(func)
     def wrapper(bot, message):
         nonlocal last_msg
         if message != last_msg:
             last_msg = message
-            return f(bot, message)
+            return func(bot, message)
         logger.debug(f'Было получено повторяющееся сообщение: {message}')
 
     return wrapper
@@ -171,7 +162,7 @@ def main() -> None:
                 continue
             message = parse_status(response['homeworks'][0])
             send_message(bot, message)
-            timestamp = response['current_date']
+            timestamp = response.get('current_date', timestamp)
         except telegram.error.TelegramError as error:
             logger.error(f'Сбой в работе телеграмма: {error}')
         except Exception as error:
